@@ -1,0 +1,541 @@
+start // 1
+  = _ v:Query _
+  {return v}
+
+// Whitespace is insignificant for non-CAPS terms
+_ = WS* {return " "}
+__ = WS* {return "__"}
+
+Query // 2
+  = Prologue v:( SelectQuery / ConstructQuery / DescribeQuery / AskQuery )
+  //= Prologue v:( SelectQuery )
+  {return v}
+
+Prologue // 3
+  = BaseDecl? PrefixDecl*
+
+BaseDecl // 4
+  = 'BASE' __ IRI_REF
+
+PrefixDecl // 5
+  = _ 'PREFIX' __ PNAME_NS __ IRI_REF
+
+SelectQuery // 6
+  = s:SelectClause _  d:DatasetClause* _  w:WhereClause _  group:GroupClause? _ having:HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses? _ b:BindingsClause
+  { var r= { a: "sp:Select"
+           //, "sp:distinct": (s.modifier=='DISTINCT')
+           //, "sp:reduced": (s.modifier=='REDUCED')
+           , "sp:resultVariables": s["sp:resultVariables"]
+           , "sp:where": w
+           }
+    if(s.modifier=='DISTINCT') r["sp:distinct"]=true;
+    if(s.modifier=='REDUCED') r["sp:reduced"]=true;
+    if(order) r["sp:orderBy"]=order;
+    if(limit && limit.limit) r["sp:limit"]=limit.limit;
+    if(limit && limit.offset) r["sp:offset"]=limit.offset;
+    return r;
+  }
+
+SubSelect // 7
+  //= SelectClause _ WhereClause _ SolutionModifier
+  = SelectClause _ WhereClause _ group:GroupClause? _ having:HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
+
+SelectClause // 8
+  = 'SELECT' _ modifier:( 'DISTINCT' / 'REDUCED' )? _ v:SelectClauseA
+  {return {modifier:modifier, "sp:resultVariables":v}}
+SelectClauseA
+  = v:(SelectClauseVars / SelectClauseWildcard)
+  {return v}
+SelectClauseVars
+  = v:( _ Var / _ SelectClauseExpression )+
+  {return v.map(function(v){return v[1]})}
+SelectClauseExpression
+  = '(' _ e:Expression __ 'AS' __ v:Var _ ')'
+  {e["sp:as"]=v;return e;}
+SelectClauseWildcard
+  = '*'
+  {return {}}
+
+ConstructQuery // 9 ::= 'CONSTRUCT' ConstructTemplate DatasetClause* WhereClause SolutionModifier
+  = 'CONSTRUCT' _ template:ConstructTemplate _ d:DatasetClause* _ w:WhereClause _ GroupClause? _ HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
+  { var r = {a:"sp:Construct", "sp:templates":template};
+    if(w) r["sp:where"]=w;
+    if(order) r["sp:orderBy"]=order;
+    if(limit && limit.limit) r["sp:limit"]=limit.limit;
+    if(limit && limit.offset) r["sp:offset"]=limit.offset;
+    return r;
+  }
+
+DescribeQuery // 10
+  = 'DESCRIBE' __ v:( ( _ VarOrIRIref)+ / '*' ) _ DatasetClause* _ w:WhereClause? _ GroupClause? _ HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
+  { var r = {a:"sp:Describe"};
+    if(Array.isArray(v)) r["sp:resultNodes"]=v.map(function(x){return x[1]});
+    if(w) r["sp:where"]=w;
+    if(order) r["sp:orderBy"]=order;
+    if(limit && limit.limit) r["sp:limit"]=limit.limit;
+    if(limit && limit.offset) r["sp:offset"]=limit.offset;
+    return r;
+  }
+
+AskQuery // 11 TOTO DatasetClause
+  = 'ASK' __ d:DatasetClause* _  w:WhereClause
+  { var r= { a: "sp:Ask"
+           , "sp:where": w
+           }
+    return r;
+  }
+
+DatasetClause // 12
+  = 'FROM' __ ( DefaultGraphClause / NamedGraphClause )
+
+DefaultGraphClause // 13
+  = SourceSelector
+
+NamedGraphClause // 14
+  = 'NAMED' __ SourceSelector
+
+SourceSelector // 15
+  = IRIref
+
+WhereClause // 16
+  = 'WHERE'? __ g:GroupGraphPattern
+  {return g}
+
+//SolutionModifier // 17
+//  = GroupClause? _ HavingClause? _ OrderClause? _ LimitOffsetClauses?
+
+GroupClause // 18
+  = 'GROUP' __ 'BY' __ v:GroupCondition+
+  {return v}
+
+GroupCondition // 19
+  = ( BuiltInCall / FunctionCall / '(' _ Expression _ ( 'AS' __ Var )? _ ')' / Var )
+
+HavingClause // 20
+  = 'HAVING' __ v:HavingCondition+
+  {return v}
+
+HavingCondition // 21
+  = Constraint
+
+OrderClause // 22
+  = 'ORDER' __ 'BY' __ v:OrderCondition+
+  {return v}
+
+OrderCondition // 23
+  = OrderConditionA / OrderConditionB
+OrderConditionA // 23
+  = t:( 'ASC' / 'DESC' ) _ e:BrackettedExpression
+  {return {a:({'ASC':'sp:Asc','DESC':'sp:Desc'})[t], "sp:expression":e}}
+OrderConditionB // 23
+  = Constraint / Var
+
+LimitOffsetClauses // 24
+  = v:( LimitClause __ OffsetClause? / OffsetClause __ LimitClause? )
+  {return {limit:v}}//{limit:v[0].limit||v[2].limit||false, offset:v[0].offset||v[2].offset||false}}
+
+LimitClause // 25
+  = 'LIMIT' __ v:INTEGER
+  {limit:v}
+
+OffsetClause // 26
+  = 'OFFSET' __ v:INTEGER
+  {offset:v}
+
+BindingsClause // 27
+  = ( 'BINDINGS' __ Var* _ '{' _ ( '(' _ BindingValue+ ')' _ / NIL )* _ '}' _ )?
+
+BindingValue // 28
+  = IRIref / RDFLiteral / NumericLiteral / BooleanLiteral / 'UNDEF'
+
+
+GroupGraphPattern // 50
+  = '{' _ p:( SubSelect / GroupGraphPatternSub ) _ '}'
+  {return p}
+
+GroupGraphPatternSub // 51
+  = t1:TriplesBlock? t2:( _ GraphPatternNotTriples _ '.'? _ TriplesBlock? )*
+  {var t=t1||[]; t2.forEach(function(x){ if(x[1])t.push(x[1]); if(x[5])t=t.concat(x[5]); }); return t}
+
+TriplesBlock // 52
+  = a:TriplesSameSubjectPath _ n:( '.' _ TriplesBlock? )?
+  {return a.concat(n[2]||[])}
+
+GraphPatternNotTriples // 53
+  = v:(GroupOrUnionGraphPattern / OptionalGraphPattern / MinusGraphPattern / GraphGraphPattern / ServiceGraphPattern / Filter)
+  //{return {a:"GraphPatternNotTriples", v:v}}
+  {return v}
+
+OptionalGraphPattern // 54
+  = 'OPTIONAL' __ v:GroupGraphPattern
+  {return {a:"sp:Optional", "sp:elements":v}}
+
+GraphGraphPattern // 55
+  = 'GRAPH' __ VarOrIRIref __ GroupGraphPattern
+
+ServiceGraphPattern // 56
+  = 'SERVICE' __ VarOrIRIref __ GroupGraphPattern
+
+MinusGraphPattern // 57
+  = 'MINUS' __ GroupGraphPattern
+
+GroupOrUnionGraphPattern // 58
+  = p1:GroupGraphPattern p:( _ 'UNION' _ GroupGraphPattern )*
+  {return {a:"sp:Union", "sp:elements":[p1].concat(p.map(function(v){return v[3]}))}}
+
+Filter // 59
+  = 'FILTER' __ v:Constraint
+  {return {a:"sp:Filter", "sp:expression":v}}
+
+Constraint // 60
+  = BrackettedExpression / BuiltInCall / FunctionCall
+
+FunctionCall // 61
+  = IRIref __ ArgList
+
+ArgList // 62
+  = ( NIL / '(' _ 'DISTINCT'? _ Expression ( _ ',' _ Expression )* _ ')' )
+
+ExpressionList // 63
+  = ( NIL / '(' _ Expression ( _ ',' _ Expression )* _ ')' )
+
+ConstructTemplate // 64
+  = '{' _ v:ConstructTriples? _ '}'
+  {return v}
+
+ConstructTriples // 65
+  = a:TriplesSameSubject _ b:( _ '.' _ ConstructTriples? )?
+  {return [a].concat([b].map(function(x){x[3]}))}
+
+TriplesSameSubject // 66
+  = v:(VarOrTerm _ PropertyListNotEmpty / TriplesNode _ PropertyList)
+  {return {a:"TriplesSameSubject", v:v}}
+
+PropertyListNotEmpty // 67
+  = Verb _ ObjectList ( _ ';' ( _ Verb _ ObjectList )? )*
+  {return {a:"PropertyListNotEmpty"}}
+
+PropertyList // 68
+  = v:PropertyListNotEmpty?
+  {return v}
+
+ObjectList // 69
+  = a:Object b:( _ ',' _ Object )*
+  {return [a].concat(b.map(function(v){return v[3]}))}
+
+Object // 70
+  = v:GraphNode
+  {return v}
+
+Verb // 71
+  = v:(VarOrIRIref / 'a')
+  {return 'Verb<'+v+'>'}
+
+TriplesSameSubjectPath // 72
+  = TriplesSameSubjectPathA / TriplesSameSubjectPathB
+TriplesSameSubjectPathA
+  = v:(VarOrTerm __ PropertyListNotEmptyPath)
+  //{return [{TriplesSameSubjectPathA:v}]}
+  {var t=[]; v[2].forEach(function(y){ y.o.forEach(function(z){ var u={a:y.a, "sp:subject":v[0]}; if(y["sp:predicate"])u["sp:predicate"]=y["sp:predicate"]; if(y["sp:path"])u["sp:path"]=y["sp:path"]; u["sp:object"]=z; t.push(u)}) }); return t;}
+TriplesSameSubjectPathB
+  = v:(TriplesNode __ PropertyListPath)
+  {return [v]}
+
+PropertyListNotEmptyPath // 73 ::= ( VerbPath | VerbSimple ) ObjectList ( ';' ( ( VerbPath | VerbSimple ) ObjectList )? )*
+  = p1:PropertyListNotEmptyPath_Property b:( _ ';' _ PropertyListNotEmptyPath_Property? )*
+  {return [p1].concat(b.map(function(v){return v[3]}))}
+
+PropertyListNotEmptyPath_Property
+  = v:( VerbPath / VerbSimple ) _ o:ObjectList
+  {v.o=o; return v}
+
+PropertyListPath // 74
+  = v:PropertyListNotEmpty?
+  {return {a:"sp:TriplePath", "sp:path":v}}
+
+VerbPath // 75
+  = v:Path
+  {return {a:"sp:TriplePath", "sp:path":v}}
+
+VerbSimple // 76
+  = v:Var
+  {return {a:"sp:TriplePattern", "sp:predicate":v}}
+
+Path // 77
+  = v:PathAlternative
+  //{return {Path:v}}
+  {return v}
+
+PathAlternative // 78
+  = a:PathSequence b:( _ '|' _ PathSequence )*
+  {return a.concat(b.map(function(v){return v[3]}))}
+
+PathSequence // 79
+  = a:PathEltOrInverse b:( _ '/' _ PathEltOrInverse )*
+  {return [a].concat(b.map(function(v){return v[3]}))}
+
+PathElt // 80 ::= PathPrimary PathMod?
+  = a:PathPrimary mod:( '*' / '?' / '+' / '{' ( Integer ( ',' ( '}' / Integer '}' ) / '}' ) / ',' Integer '}' ) )?
+  {return mod?{a:"sp:ModPath","sp:subPath":a,"sp:modMin":1,"sp:modMax":1}:a}
+
+PathEltOrInverse // 81
+  = i:'^'? v:PathElt
+  {return i?{a:"sp:ReversePath", "sp:subPath":v}:v}
+
+PathMod // 82
+  = ( '*' / '?' / '+' / '{' ( Integer ( ',' ( '}' / Integer '}' ) / '}' ) / ',' Integer '}' ) )
+
+PathPrimary // 83
+  = v:( IRIref / 'a' / '!' PathNegatedPropertySet / '(' Path ')' )
+  //{return 'PathPrimary<'+v+'>'}
+  // TODO decode to URI
+  {return v}
+
+PathNegatedPropertySet // 84
+  = ( _ PathOneInPropertySet / _ '(' ( _ PathOneInPropertySet ( _ '|' _ PathOneInPropertySet )* )? _ ')' )
+
+PathOneInPropertySet // 85
+  = v:( IRIref / 'a' / '^' ( IRIref / 'a' ) )
+  {return 'PathOneInPropertySet<'+v+'>'}
+
+Integer // 86
+  = INTEGER
+
+TriplesNode // 87
+  = v:(Collection / BlankNodePropertyList)
+  {return {TriplesNode:v}}
+
+BlankNodePropertyList // 88
+  = '[' v:PropertyListNotEmpty ']'
+  {return {BlankNodePropertyList:v}}
+
+Collection // 89
+  = '(' v:GraphNode+ ')'
+  {return v}
+
+GraphNode // 90
+  = VarOrTerm / TriplesNode
+
+VarOrTerm // 91
+  = Var / GraphTerm
+
+VarOrIRIref // 92
+  = Var / IRIref
+
+Var // 93
+  = varname:(VAR1 / VAR2)
+  {return "sp:_"+varname}
+
+GraphTerm // 94
+  = IRIref / RDFLiteral / NumericLiteral / BooleanLiteral / BlankNode / NIL
+
+Expression // 95
+  = v:ConditionalOrExpression
+  {return v}
+
+ConditionalOrExpression // 96
+  = a:ConditionalAndExpression b:( _ '||' _ ConditionalAndExpression )*
+  {var t=([a]||[]).concat(b.map(function(v){v[3]})); return t.length>1?{a:"sp:or", "sp:elements":t}:t[0];}
+  //{return {ConditionalOrExpressionA:a, ConditionalOrExpressionB:b}}
+
+ConditionalAndExpression // 97
+  = a:ValueLogical b:( _ '&&' _ ValueLogical )*
+  {var t=([a]||[]).concat(b.map(function(v){v[3]})); return t.length>1?{a:"sp:and", "sp:elements":t}:t[0];}
+  //{return {ConditionalAndExpressionA:a, ConditionalAndExpressionB:b}}
+
+ValueLogical // 98
+  = v:RelationalExpression
+  {return v}
+
+RelationalExpression // 99
+  = a:NumericExpression b:( _ '=' _ NumericExpression / _ '!=' _ NumericExpression / _ '<' _ NumericExpression / _ '>' _ NumericExpression / _ '<=' _ NumericExpression / _ '>=' _ NumericExpression / _ 'IN' _ ExpressionList / _ 'NOT IN' _ ExpressionList )?
+  { if(!b) return a; return {a:({'=':'sp:eq','<':'sp:lt','>':'sp:gt'})[b[1]], arg1:a, arg2:b[3]}; }
+
+NumericExpression // 100
+  = v:AdditiveExpression
+  {return v}
+
+AdditiveExpression // 101
+  = a:MultiplicativeExpression b:( _ '+' _ MultiplicativeExpression / _ '-' _ MultiplicativeExpression / ( NumericLiteralPositive / NumericLiteralNegative ) _ ( ( '*' _ UnaryExpression ) / ( '/' _ UnaryExpression ) )? )*
+  { var r=a; b.forEach(function(v){r={a:({'+':'sp:add','-':'sp:sub'})[v[1]], arg1:r, arg2:v[3]}}); return r; }
+
+MultiplicativeExpression // 102
+  = a:UnaryExpression b:( _ '*' _ UnaryExpression / _ '/' _ UnaryExpression )*
+  { var r=a; b.forEach(function(v){r={a:({'*':'sp:mul','/':'sp:divide'})[v[1]], arg1:r, arg2:v[3]}}); return r; }
+
+UnaryExpression // 103
+  = '!' _ PrimaryExpression 
+   / '+' _ PrimaryExpression 
+   / '-' _ PrimaryExpression 
+   / PrimaryExpression
+
+PrimaryExpression // 104
+  = BrackettedExpression / BuiltInCall / IRIrefOrFunction / RDFLiteral / NumericLiteral / BooleanLiteral / Var / Aggregate
+
+BrackettedExpression // 105
+  = '(' _ v:Expression _ ')'
+  {return v}
+
+BuiltInCall // 106
+  = v:( BuiltInCallA / RegexExpression / ExistsFunc / NotExistsFunc)
+  {return v}
+BuiltInCallA
+  = 'STR' _ '(' _ Expression _ ')' 
+   / 'LANG' _ '(' _ Expression _ ')' 
+   / 'LANGMATCHES' _ '(' _ Expression _ ',' _ Expression ')' 
+   / 'DATATYPE' _ '(' _ Expression _ ')' 
+   / 'BOUND' _ '(' _ Var _ ')' 
+   / 'IRI' _ '(' _ Expression _ ')' 
+   / 'URI' _ '(' _ Expression _ ')' 
+   / 'BNODE' _ ( '(' _ Expression _ ')' / NIL ) 
+   / 'COALESCE' _ ExpressionList 
+   / 'IF' _ '(' _ Expression _ ',' _ Expression _ ',' _ Expression _ ')' 
+   / 'STRLANG' _ '(' _ Expression _ ',' _ Expression ')' 
+   / 'STRDT' _ '(' _ Expression _ ',' _ Expression ')' 
+   / 'sameTerm' _ '(' _ Expression _ ',' _ Expression ')' 
+   / 'isIRI' _ '(' _ Expression _ ')' 
+   / 'isURI' _ '(' _ Expression _ ')' 
+   / 'isBLANK' _ '(' _ Expression _ ')' 
+   / 'isLITERAL' _ '(' _ Expression _ ')' 
+   / 'isNUMERIC' _ '(' _ Expression _ ')' 
+  {var r={a:"sp:func:"+v[0]};if(v[4])r.arg1=v[4];if(v[4])r.arg1=v[4]; if(v[8])r.arg1=v[8]; if(v[12])r.arg1=v[12]; return r}
+
+RegexExpression // 107 FIXME add flags
+  = 'REGEX' _ '(' _ i:Expression _ ',' _ e:Expression f:( _ ',' _ Expression )? _ ')'
+  {return {a:"sp:regex", arg1:i, arg2:e};}
+
+ExistsFunc // 108
+  = 'EXISTS' _ v:GroupGraphPattern
+  {return {a:"sp:exists", arg1:v};}
+
+NotExistsFunc // 109
+  = 'NOT EXISTS' _ v:GroupGraphPattern
+  {return {a:"sp:notExists", arg1:v};}
+
+Aggregate // 110
+  = v:( 'COUNT' _ '(' _ 'DISTINCT'? _ ( '*' / Expression ) _ ')' / 'SUM' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'MIN' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'MAX' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'AVG' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'SAMPLE' _ '(' _ 'DISTINCT'? _ Expression ')' / 'GROUP_CONCAT' '(' 'DISTINCT'? Expression ( _ ';' _ 'SEPARATOR' _ '=' _ String )? _ ')' )
+  {return {a:"sp:func:"+v[0], "sp:expression":v[6]}}
+
+IRIrefOrFunction // 111
+  = IRIref ArgList?
+
+RDFLiteral // 112
+  = String ( LANGTAG / ( '^^' IRIref ) )?
+
+NumericLiteral // 113
+  = NumericLiteralUnsigned / NumericLiteralPositive / NumericLiteralNegative
+NumericLiteralUnsigned // 114
+  = INTEGER / DECIMAL / DOUBLE
+NumericLiteralPositive // 115
+  = INTEGER_POSITIVE / DECIMAL_POSITIVE / DOUBLE_POSITIVE
+NumericLiteralNegative // 116
+  = INTEGER_NEGATIVE / DECIMAL_NEGATIVE / DOUBLE_NEGATIVE
+BooleanLiteral // 117
+  = 'true' / 'false'
+
+String // 118
+  = chars:(STRING_LITERAL1 / STRING_LITERAL2 / STRING_LITERAL_LONG1 / STRING_LITERAL_LONG2)
+  {return chars.join("");}
+
+IRIref // 119
+  = IRI_REF / PrefixedName
+
+PrefixedName // 120
+  = PNAME_LN / PNAME_NS
+
+BlankNode // 121
+  = BLANK_NODE_LABEL / ANON
+
+IRI_REF // 122 List off the characters that do /not/ form an IRI ref
+  = '<' chars:[^<>"{}|^`\\\x00-\x20]* '>'
+  {return chars.join('');}
+
+PNAME_NS // 123
+  = a:PN_PREFIX? b:':'
+  //{return "PNAME_NS<"+a+b+">"}
+  {return a+b}
+
+PNAME_LN // 124
+  = a:PNAME_NS b:PN_LOCAL
+  //{return "PNAME_LN<"+a+b+">"}
+  {return a+b}
+
+BLANK_NODE_LABEL // 125
+  = a:'_:' b:PN_LOCAL
+  {return a+b}
+
+VAR1 // 126
+  = '?' v:VARNAME
+  { return v }
+VAR2 // 127
+  = '$' v:VARNAME
+  { return v }
+
+LANGTAG // 128
+  = '@' [a-zA-Z]+ ('-' [a-zA-Z0-9]+)*
+
+INTEGER // 129
+  = digits:([0-9]+)
+  {return parseInt(digits.join(""));}
+DECIMAL // 130
+  = [0-9]+ '.' [0-9]* / '.' [0-9]+
+DOUBLE // 131
+  = [0-9]+ '.' [0-9]* EXPONENT / '.' ([0-9])+ EXPONENT / ([0-9])+ EXPONENT
+INTEGER_POSITIVE // 132
+  = '+' INTEGER
+DECIMAL_POSITIVE // 133
+  = '+' DECIMAL
+DOUBLE_POSITIVE // 134
+  = '+' DOUBLE
+INTEGER_NEGATIVE // 135
+  = '-' INTEGER
+DECIMAL_NEGATIVE // 136
+  = '-' DECIMAL
+DOUBLE_NEGATIVE // 137
+  = '-' DOUBLE
+EXPONENT // 138
+  = [eE] [+-]? [0-9]+
+STRING_LITERAL1 // 139
+  = "'" ( ([^\x27\x5C\x0A\x0D]) / ECHAR )* "'"
+STRING_LITERAL2 // 140
+  = '"' ( ([^\x22\x5C\x0A\x0D]) / ECHAR )* '"'
+STRING_LITERAL_LONG1 // 141
+  = "'''" ( ( "'" / "''" )? ( [^'\\] / ECHAR ) )* "'''"
+STRING_LITERAL_LONG2 // 142
+  = '"""' ( ( '"' / '""' )? ( [^"\\] / ECHAR ) )* '"""'
+ECHAR // 143
+  = '\\' [tbnrf\\\"\']
+
+NIL // 144
+ = '(' WS* ')'
+WS // 145
+  = "\x20" / "\x09" / "\x0D" / "\x0A"
+ANON // 146
+  = '[' WS* ']'
+
+PN_CHARS_BASE // 147 ::= [A-Z] | [a-z] | [#x00C0-#x00D6] | [#x00D8-#x00F6] | [#x00F8-#x02FF] | [#x0370-#x037D] | [#x037F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+  = [A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]
+  // FIXME Unicode code points #x10000-#xEFFFF not matched
+
+PN_CHARS_U // 148 ::= PN_CHARS_BASE | '_'
+  = chars:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_]
+
+VARNAME // 149 ::= ( PN_CHARS_U | [0-9] ) ( PN_CHARS_U | [0-9] | #x00B7 | [#x0300-#x036F] | [#x203F-#x2040] )*
+  = a:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_0-9]
+    b:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_0-9\u00B7\u0300-\u036F\u203F-\u2040]*
+  {return a+b.join('')}
+
+PN_CHARS // 150 ::= PN_CHARS_U | '-' | [0-9] | #x00B7 | [#x0300-#x036F] | [#x203F-#x2040]
+  = [A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_\-0-9\u00B7\u0300-\u036F\u203F-\u2040]
+
+PN_PREFIX // 151 ::= PN_CHARS_BASE ((PN_CHARS|'.')* PN_CHARS)?
+  = a:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]
+    b:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_\-0-9\u00B7\u0300-\u036F\u203F-\u2040]*
+  //{return "PN_PREFIX<"+a+b.join('')+">"}
+  {return a+b.join('')}
+
+PN_LOCAL // 152 ::= ( PN_CHARS_U | [0-9] ) ((PN_CHARS|'.')* PN_CHARS)?
+  = a:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_0-9]
+    b:[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD_\-0-9\u00B7\u0300-\u036F\u203F-\u2040]*
+  //{return "PN_LOCAL<"+a+b.join('')+">"}
+  {return a+b.join('')}
