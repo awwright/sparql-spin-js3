@@ -131,16 +131,23 @@ OrderConditionB // 23
   = Constraint / Var
 
 LimitOffsetClauses // 24
-  = v:( LimitClause __ OffsetClause? / OffsetClause __ LimitClause? )
-  {return {limit:v}}//{limit:v[0].limit||v[2].limit||false, offset:v[0].offset||v[2].offset||false}}
+  = v:( LimitOffsetClausesA / LimitOffsetClausesB )
+  //= v:( limit:LimitClause _ offset:OffsetClause? / offset:OffsetClause _ limit:LimitClause? )
+  {return v}
+LimitOffsetClausesA
+  = limit:LimitClause _ offset:OffsetClause?
+  {return {limit:limit, offset:offset}}
+LimitOffsetClausesB
+  = offset:OffsetClause _ limit:LimitClause?
+  {return {offset:offset, limit:limit}}
 
 LimitClause // 25
   = 'LIMIT' __ v:INTEGER
-  {limit:v}
+  {return v}
 
 OffsetClause // 26
   = 'OFFSET' __ v:INTEGER
-  {offset:v}
+  {return v}
 
 BindingsClause // 27
   = ( 'BINDINGS' __ Var* _ '{' _ ( '(' _ BindingValue+ ')' _ / NIL )* _ '}' _ )?
@@ -398,7 +405,7 @@ BuiltInCallA
    / 'isBLANK' _ '(' _ Expression _ ')' 
    / 'isLITERAL' _ '(' _ Expression _ ')' 
    / 'isNUMERIC' _ '(' _ Expression _ ')' 
-  {var r={a:"sp:func:"+v[0]};if(v[4])r.arg1=v[4];if(v[4])r.arg1=v[4]; if(v[8])r.arg1=v[8]; if(v[12])r.arg1=v[12]; return r}
+  {var r={a:"sp:func:"+v[0]};if(v[4])r.arg1=v[4];if(v[4])r.arg1=v[4]; if(v[8])r.arg2=v[8]; if(v[12])r.arg3=v[12]; return r}
 
 RegexExpression // 107 FIXME add flags
   = 'REGEX' _ '(' _ i:Expression _ ',' _ e:Expression f:( _ ',' _ Expression )? _ ')'
