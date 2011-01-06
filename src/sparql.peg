@@ -271,7 +271,7 @@ VerbSimple // 76
 Path // 77
   = v:PathAlternative
   //{return {Path:v}}
-  {return v}
+  {return rdfCollection(v)}
 
 PathAlternative // 78
   = a:PathSequence b:( _ '|' _ PathSequence )*
@@ -405,19 +405,19 @@ BuiltInCallA
    / 'isBLANK' _ '(' _ Expression _ ')' 
    / 'isLITERAL' _ '(' _ Expression _ ')' 
    / 'isNUMERIC' _ '(' _ Expression _ ')' 
-  {var r={a:"sp:func:"+v[0]};if(v[4])r.arg1=v[4];if(v[4])r.arg1=v[4]; if(v[8])r.arg2=v[8]; if(v[12])r.arg3=v[12]; return r}
+  {var r={a:"sp:func:"+v[0]}; if(v[4])r.arg1=v[4]; if(v[8])r.arg2=v[8]; if(v[12])r.arg3=v[12]; return r}
 
 RegexExpression // 107 FIXME add flags
   = 'REGEX' _ '(' _ i:Expression _ ',' _ e:Expression f:( _ ',' _ Expression )? _ ')'
-  {return {a:"sp:regex", arg1:i, arg2:e};}
+  {return {a:"sp:regex", arg1:i, arg2:e}}
 
 ExistsFunc // 108
   = 'EXISTS' _ v:GroupGraphPattern
-  {return {a:"sp:exists", arg1:v};}
+  {return {a:"sp:exists", arg1:v}}
 
 NotExistsFunc // 109
   = 'NOT EXISTS' _ v:GroupGraphPattern
-  {return {a:"sp:notExists", arg1:v};}
+  {return {a:"sp:notExists", arg1:v}}
 
 Aggregate // 110
   = v:( 'COUNT' _ '(' _ 'DISTINCT'? _ ( '*' / Expression ) _ ')' / 'SUM' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'MIN' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'MAX' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'AVG' _ '(' _ 'DISTINCT'? _ Expression _ ')' / 'SAMPLE' _ '(' _ 'DISTINCT'? _ Expression ')' / 'GROUP_CONCAT' '(' 'DISTINCT'? Expression ( _ ';' _ 'SEPARATOR' _ '=' _ String )? _ ')' )
