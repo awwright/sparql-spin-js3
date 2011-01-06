@@ -17,3 +17,4 @@ The finished SPARQL parser is found in sparql.js (and also symlinked by index.js
         var sparqlParser=require('sparql');
         var query = sparqlParser.parse(query).ref('_:query');
 
+Some Vows tests can be run, simply run `vows` in the working directory.
