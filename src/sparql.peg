@@ -242,8 +242,17 @@ TriplesSameSubjectPath // 72
   = TriplesSameSubjectPathA / TriplesSameSubjectPathB
 TriplesSameSubjectPathA
   = v:(VarOrTerm __ PropertyListNotEmptyPath)
-  //{return [{TriplesSameSubjectPathA:v}]}
-  {var t=[]; v[2].forEach(function(y){ y.o.forEach(function(z){ var u={a:y.a, "sp:subject":v[0]}; if(y["sp:predicate"])u["sp:predicate"]=y["sp:predicate"]; if(y["sp:path"])u["sp:path"]=y["sp:path"]; u["sp:object"]=z; t.push(u)}) }); return t;}
+  { var t=[];
+    v[2].forEach(function(y){
+      y.o.forEach(function(z){
+        t.push((y["sp:predicate"]||(y["sp:path"]&&y["sp:path"].a))
+          ? {a:"sp:TriplePath", "sp:subject":v[0], "sp:path":y["sp:path"], "sp:object":z}
+          : {a:"sp:TriplePattern", "sp:subject":v[0], "sp:predicate":(y["sp:predicate"]||y["sp:path"]), "sp:object":z}
+          )
+      })
+    });
+    return t;
+  }
 TriplesSameSubjectPathB
   = v:(TriplesNode __ PropertyListPath)
   {return [v]}
@@ -270,20 +279,27 @@ VerbSimple // 76
 
 Path // 77
   = v:PathAlternative
-  //{return {Path:v}}
-  {return rdfCollection(v)}
+  {return v}
 
 PathAlternative // 78
   = a:PathSequence b:( _ '|' _ PathSequence )*
-  {return a.concat(b.map(function(v){return v[3]}))}
+  // SPIN says the paths should be listed in sp:path1 and sp:path2.
+  // This is insane, let's use a collection.
+  {return b.length?{a:"sp:AltPath", "sp:subPath":rdfCollection([a].concat(b.map(function(v){return v[3]})))}:a;}
 
 PathSequence // 79
   = a:PathEltOrInverse b:( _ '/' _ PathEltOrInverse )*
-  {return [a].concat(b.map(function(v){return v[3]}))}
+  {return b.length?{a:"sp:SeqPath", "sp:subPath":rdfCollection([a].concat(b.map(function(v){return v[3]})))}:a;}
 
 PathElt // 80 ::= PathPrimary PathMod?
-  = a:PathPrimary mod:( '*' / '?' / '+' / '{' ( Integer ( ',' ( '}' / Integer '}' ) / '}' ) / ',' Integer '}' ) )?
-  {return mod?{a:"sp:ModPath","sp:subPath":a,"sp:modMin":1,"sp:modMax":1}:a}
+  = a:PathPrimary mod:( '*' / '?' / '+' / '{' ( Integer (',' Integer?)? / ',' Integer ) '}' )?
+  {return mod?
+    { a:"sp:ModPath"
+    , "sp:subPath":a
+    , "sp:modMin":(mod=='+'&&1)||(mod=='*'||mod=='?')?0:(mod[1][0]==','?0:mod[1][0])
+    , "sp:modMax":((mod=='*'||mod=='+')&&Number.POSITIVE_INFINITY)||(mod=='?'&&1)||(mod[1][0]==','?mod[1][1]:(mod[1][1]?(mod[1][1][1]===""?Number.POSITIVE_INFINITY:mod[1][1][1]):mod[1][0]))
+    }:a
+  }
 
 PathEltOrInverse // 81
   = i:'^'? v:PathElt
@@ -427,7 +443,8 @@ IRIrefOrFunction // 111
   = IRIref ArgList?
 
 RDFLiteral // 112
-  = String ( LANGTAG / ( '^^' IRIref ) )?
+  = v:String d:( LANGTAG / ( '^^' IRIref ) )?
+  {return d?(typeof(d)=="string"?v.l(d):v.tl(d[1])):v}
 
 NumericLiteral // 113
   = NumericLiteralUnsigned / NumericLiteralPositive / NumericLiteralNegative
@@ -442,7 +459,7 @@ BooleanLiteral // 117
 
 String // 118
   = chars:(STRING_LITERAL1 / STRING_LITERAL2 / STRING_LITERAL_LONG1 / STRING_LITERAL_LONG2)
-  {return chars.join("");}
+  {return chars[1].join("");}
 
 IRIref // 119
   = IRI_REF / PrefixedName
@@ -479,7 +496,8 @@ VAR2 // 127
   { return v }
 
 LANGTAG // 128
-  = '@' [a-zA-Z]+ ('-' [a-zA-Z0-9]+)*
+  = '@' a:[a-zA-Z]+ b:('-' [a-zA-Z0-9]+)*
+  {return a.join("")+b.map(function(v){return v[0]+v[1].join("")}).join("")}
 
 INTEGER // 129
   = digits:([0-9]+)
