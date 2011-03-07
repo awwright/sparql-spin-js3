@@ -119,8 +119,8 @@ HavingCondition // 21
   = Constraint
 
 OrderClause // 22
-  = 'ORDER' __ 'BY' __ v:OrderCondition+
-  {return v}
+  = 'ORDER' __ 'BY' v:( __ OrderCondition)+
+  {return v.map(function(v){return v[1]})}
 
 OrderCondition // 23
   = OrderConditionA / OrderConditionB
