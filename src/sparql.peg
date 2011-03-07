@@ -7,7 +7,7 @@ _ = WS* {return " "}
 __ = WS* {return "__"}
 
 Query // 2
-  = Prologue v:( SelectQuery / ConstructQuery / DescribeQuery / AskQuery )
+  = Prologue v:( SelectQuery / ConstructQuery / DescribeQuery / AskQuery / Update1 )
   //= Prologue v:( SelectQuery )
   {return v}
 
@@ -155,6 +155,56 @@ BindingsClause // 27
 BindingValue // 28
   = IRIref / RDFLiteral / NumericLiteral / BooleanLiteral / 'UNDEF'
 
+UpdateUnit // 29
+  = Update
+
+Update // 30
+  = Prologue Update1 ( ';' Update? )?
+
+Update1 // 31
+//  = Load / Clear / Drop / Create / InsertData / DeleteData / DeleteWhere / Modify
+  = v:( Modify )
+  {return v}
+
+Modify // 39
+  = ( 'WITH' _ IRIref _ )? m:( DeleteClause _ InsertClause? / InsertClause ) _ u:UsingClause* _ 'WHERE' _ g:GroupGraphPattern
+  {return {delete:m[0].delete||undefined, insert:m[0].insert||m[2]&&m[2].insert||undefined, u:u, g:g}}
+
+DeleteClause // 40
+  = 'DELETE' __ v:QuadPattern
+  {return {delete:v}}
+
+InsertClause // 41
+  = 'INSERT' __ v:QuadPattern
+  {return {insert:v}}
+
+UsingClause // 42
+  = 'USING' __ ( IRIref / 'NAMED' __ IRIref )
+
+GraphRef // 43
+  = 'GRAPH' __ IRIref
+
+GraphRefAll // 44
+  = GraphRef / 'DEFAULT' / 'NAMED' / 'ALL'
+
+QuadPattern // 45
+  = '{' _ v:Quads _ '}'
+  {return v}
+
+QuadData // 46
+  = '{' _ v:Quads _ '}'
+  {return v}
+
+Quads // 47
+  = template:TriplesTemplate? _ t2:( QuadsNotTriples _ '.'? _ TriplesTemplate? _ )*
+  {return {template:template, t2:t2}}
+
+QuadsNotTriples // 48
+  = 'GRAPH' _ VarOrIRIref _ '{' _ TriplesTemplate? _ '}'
+
+TriplesTemplate // 49
+  = t:TriplesSameSubject _ r:( '.' _ TriplesTemplate? _ )?
+  {return [t].concat(r||[])}
 
 GroupGraphPattern // 50
   = '{' _ p:( SubSelect / GroupGraphPatternSub ) _ '}'
