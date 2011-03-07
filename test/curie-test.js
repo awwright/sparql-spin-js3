@@ -4,8 +4,7 @@ var sparqlParser=require('./../sparql.js');
 
 var p = sparqlParser.parse;
 
-
-vows.describe('js3 Equality tests').addBatch(
+vows.describe('SELECT queries').addBatch(
 { 'Resolve "sp:path"': function(){ assert.equal("sp:path".resolve(), "http://spinrdf.org/sp#path"); }
 , 'Resolve "path"':
 	{ topic: {path: "abc"}.ref('_:test')

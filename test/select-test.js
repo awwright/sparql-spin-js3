@@ -5,7 +5,7 @@ var sparqlParser=require('./../sparql.js');
 var p = sparqlParser.parse;
 
 
-vows.describe('js3 Equality tests').addBatch({
+vows.describe('Checking pattern').addBatch({
 'SELECT * {?x a ?z}':
 	{ topic: p("SELECT * {?x a ?z}").ref('_:query')
 	//, 'Output structure': function(t){ console.log(t); }
