@@ -120,7 +120,7 @@ HavingCondition // 21
 
 OrderClause // 22
   = 'ORDER' __ 'BY' v:( __ OrderCondition)+
-  {return v.map(function(v){return v[1]})}
+  {return rdfCollection(v.map(function(v){return v[1]}))}
 
 OrderCondition // 23
   = OrderConditionA / OrderConditionB
