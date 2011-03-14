@@ -1,4 +1,4 @@
-var parser = require('./../peg.node.js');
+var parser = require('./../lib/peg.node.js');
 var fs = require('fs');
 var grammarFile = process.argv[2]||"src/sparql.peg";
 try {
