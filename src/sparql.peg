@@ -22,7 +22,8 @@ PrefixDecl // 5
 
 SelectQuery // 6
   = s:SelectClause _  d:DatasetClause* _  w:WhereClause _  group:GroupClause? _ having:HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses? _ b:BindingsClause
-  { var r= { a: "sp:Select"
+  { var r= { "@context":{"sp":"http://spinrdf.org/sp#"}
+           , a: "sp:Select"
            //, "sp:distinct": (s.modifier=='DISTINCT')
            //, "sp:reduced": (s.modifier=='REDUCED')
            , "sp:resultVariables": s["sp:resultVariables"]
@@ -208,7 +209,7 @@ TriplesTemplate // 49
 
 GroupGraphPattern // 50
   = '{' _ p:( SubSelect / GroupGraphPatternSub ) _ '}'
-  {return p}
+  {return rdfCollection(p)}
 
 GroupGraphPatternSub // 51
   = t1:TriplesBlock? t2:( _ GraphPatternNotTriples _ '.'? _ TriplesBlock? )*

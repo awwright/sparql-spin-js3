@@ -13,10 +13,10 @@ PEG_SRC = \
 lib/peg.node.js: src/peg.node.headers.js pegjs/VERSION $(PEG_SRC)
 	cat src/peg.node.headers.js $(PEG_SRC) >$@
 
-lib/sparql-parser-node.js: lib/peg.node.js bin/parse.js src/sparql.peg lib/sparql-parser.js lib/sparql-node.js
+lib/sparql-parser-node.js: src/sparql.headers.js lib/sparql-parser.js
 	cat src/sparql.headers.js lib/sparql-parser.js >$@
 
-lib/sparql-parser.js: bin/parse.js
+lib/sparql-parser.js: bin/parse.js src/sparql.peg lib/peg.node.js
 	$(NODEJS) bin/parse.js >$@
 
 pegjs/VERSION:
