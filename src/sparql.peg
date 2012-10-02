@@ -4,7 +4,7 @@ start // 1
 
 // Whitespace is insignificant for non-CAPS terms
 _ = WS* {return " "}
-__ = WS* {return "__"}
+__ = WS+ {return "__"}
 
 Query // 2
   = Prologue v:( SelectQuery / ConstructQuery / DescribeQuery / AskQuery / Update1 )
@@ -59,7 +59,7 @@ SelectClauseWildcard
 
 ConstructQuery // 9 ::= 'CONSTRUCT' ConstructTemplate DatasetClause* WhereClause SolutionModifier
   = 'CONSTRUCT' _ template:ConstructTemplate _ d:DatasetClause* _ w:WhereClause _ GroupClause? _ HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
-  { var r = {a:"sp:Construct", "sp:templates":template};
+  { var r = { "@context":{"sp":"http://spinrdf.org/sp#"}, a:"sp:Construct", "sp:templates":template};
     if(w) r["sp:where"]=w;
     if(order) r["sp:orderBy"]=order;
     if(limit && limit.limit) r["sp:limit"]=limit.limit;
@@ -99,14 +99,14 @@ SourceSelector // 15
   = IRIref
 
 WhereClause // 16
-  = 'WHERE'? __ g:GroupGraphPattern
+  = 'WHERE'? _ g:GroupGraphPattern
   {return g}
 
 //SolutionModifier // 17
 //  = GroupClause? _ HavingClause? _ OrderClause? _ LimitOffsetClauses?
 
 GroupClause // 18
-  = 'GROUP' __ 'BY' __ v:GroupCondition+
+  = 'GROUP' __ 'BY' v:GroupCondition+
   {return v}
 
 GroupCondition // 19
@@ -205,7 +205,7 @@ QuadsNotTriples // 48
 
 TriplesTemplate // 49
   = t:TriplesSameSubject _ r:( '.' _ TriplesTemplate? _ )?
-  {return [t].concat(r||[])}
+  {return t.concat(r||[])}
 
 GroupGraphPattern // 50
   = '{' _ p:( SubSelect / GroupGraphPatternSub ) _ '}'
@@ -259,19 +259,34 @@ ExpressionList // 63
 
 ConstructTemplate // 64
   = '{' _ v:ConstructTriples? _ '}'
-  {return v}
+  {return rdfCollection(v)}
 
 ConstructTriples // 65
-  = a:TriplesSameSubject _ b:( _ '.' _ ConstructTriples? )?
-  {return [a].concat([b].map(function(x){x[3]}))}
+  = a:TriplesSameSubject b:( _ '.' _ ConstructTriples? )?
+  { return a.concat([b].filter(function(x){return !!x[3]}).map(function(x){x[3]}))}
 
 TriplesSameSubject // 66
-  = v:(VarOrTerm _ PropertyListNotEmpty / TriplesNode _ PropertyList)
-  {return {a:"TriplesSameSubject", v:v}}
+  = TriplesSameSubjectA/TriplesSameSubjectB
+TriplesSameSubjectA
+  = v0:VarOrTerm _ v2:PropertyListNotEmpty
+  { var t=[];
+    v2.forEach(function(y){
+      y.o.forEach(function(z){
+        t.push({a:"sp:TriplePattern", "sp:subject":v0, "sp:predicate":y["sp:predicate"], "sp:object":z});
+      })
+    });
+    return t;
+  }
+TriplesSameSubjectB
+  = v:(TriplesNode _ PropertyList)
+  {return [{TriplesSameSubjectB: v}]}
 
 PropertyListNotEmpty // 67
-  = Verb _ ObjectList ( _ ';' ( _ Verb _ ObjectList )? )*
-  {return {a:"PropertyListNotEmpty"}}
+  = first:PropertyListNotEmptyA list:( _ ';' ( _ PropertyListNotEmptyA )? )*
+  { return [first].concat(list.filter(function(v){return v[2]}).map(function(v){return v[2][1]})) }
+PropertyListNotEmptyA
+  = p:Verb _ o:ObjectList
+  {return {"sp:predicate":p,o:o}}
 
 PropertyList // 68
   = v:PropertyListNotEmpty?
@@ -287,7 +302,7 @@ Object // 70
 
 Verb // 71
   = v:(VarOrIRIref / 'a')
-  {return 'Verb<'+v+'>'}
+  {return v=='a'?'http://www.w3.org/1999/02/22-rdf-syntax-ns#type':v}
 
 TriplesSameSubjectPath // 72
   = TriplesSameSubjectPathA / TriplesSameSubjectPathB
@@ -296,7 +311,7 @@ TriplesSameSubjectPathA
   { var t=[];
     v[2].forEach(function(y){
       y.o.forEach(function(z){
-        t.push((y["sp:predicate"]||(y["sp:path"]&&y["sp:path"].a))
+        t.push(y["sp:path"]&&y["sp:path"].a
           ? {a:"sp:TriplePath", "sp:subject":v[0], "sp:path":y["sp:path"], "sp:object":z}
           : {a:"sp:TriplePattern", "sp:subject":v[0], "sp:predicate":(y["sp:predicate"]||y["sp:path"]), "sp:object":z}
           )
@@ -363,7 +378,7 @@ PathPrimary // 83
   = v:( IRIref / 'a' / '!' PathNegatedPropertySet / '(' Path ')' )
   //{return 'PathPrimary<'+v+'>'}
   // TODO decode to URI
-  {return v}
+  {return v=='a'?'http://www.w3.org/1999/02/22-rdf-syntax-ns#type':v}
 
 PathNegatedPropertySet // 84
   = ( _ PathOneInPropertySet / _ '(' ( _ PathOneInPropertySet ( _ '|' _ PathOneInPropertySet )* )? _ ')' )
