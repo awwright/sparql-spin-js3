@@ -55,7 +55,7 @@ SelectClauseExpression
   {e["sp:as"]=v;return e;}
 SelectClauseWildcard
   = '*'
-  {return {}}
+  {return []}
 
 ConstructQuery // 9 ::= 'CONSTRUCT' ConstructTemplate DatasetClause* WhereClause SolutionModifier
   = 'CONSTRUCT' _ template:ConstructTemplate _ d:DatasetClause* _ w:WhereClause _ GroupClause? _ HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
@@ -375,10 +375,13 @@ PathMod // 82
   = ( '*' / '?' / '+' / '{' ( Integer ( ',' ( '}' / Integer '}' ) / '}' ) / ',' Integer '}' ) )
 
 PathPrimary // 83
-  = v:( IRIref / 'a' / '!' PathNegatedPropertySet / '(' Path ')' )
+  = v:( IRIref / 'a' / '!' PathNegatedPropertySet / PathPrimaryA )
   //{return 'PathPrimary<'+v+'>'}
   // TODO decode to URI
   {return v=='a'?'http://www.w3.org/1999/02/22-rdf-syntax-ns#type':v}
+PathPrimaryA
+  = '(' v:Path ')'
+  {return v}
 
 PathNegatedPropertySet // 84
   = ( _ PathOneInPropertySet / _ '(' ( _ PathOneInPropertySet ( _ '|' _ PathOneInPropertySet )* )? _ ')' )
