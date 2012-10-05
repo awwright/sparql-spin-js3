@@ -416,7 +416,7 @@ VarOrIRIref // 92
 
 Var // 93
   = varname:(VAR1 / VAR2)
-  {return "sp:_"+varname}
+  {return "_:var:"+varname}
 
 GraphTerm // 94
   = IRIref / RDFLiteral / NumericLiteral / BooleanLiteral / BlankNode / NIL
