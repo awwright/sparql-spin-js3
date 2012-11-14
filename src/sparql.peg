@@ -15,10 +15,10 @@ Prologue // 3
   = BaseDecl? PrefixDecl*
 
 BaseDecl // 4
-  = 'BASE' __ IRI_REF
+  = 'BASE'i __ IRI_REF
 
 PrefixDecl // 5
-  = _ 'PREFIX' __ PNAME_NS __ IRI_REF
+  = _ 'PREFIX'i __ PNAME_NS __ IRI_REF
 
 SelectQuery // 6
   = s:SelectClause _  d:DatasetClause* _  w:WhereClause _  group:GroupClause? _ having:HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses? _ b:BindingsClause
@@ -29,8 +29,8 @@ SelectQuery // 6
            , "sp:resultVariables": s["sp:resultVariables"]
            , "sp:where": w
            }
-    if(s.modifier=='DISTINCT') r["sp:distinct"]=true;
-    if(s.modifier=='REDUCED') r["sp:reduced"]=true;
+    if(s.modifier.toUpperCase()=='DISTINCT') r["sp:distinct"]=true;
+    if(s.modifier.toUpperCase()=='REDUCED') r["sp:reduced"]=true;
     if(order) r["sp:orderBy"]=order;
     if(limit && limit.limit) r["sp:limit"]=limit.limit;
     if(limit && limit.offset) r["sp:offset"]=limit.offset;
@@ -42,7 +42,7 @@ SubSelect // 7
   = SelectClause _ WhereClause _ group:GroupClause? _ having:HavingClause? _ order:OrderClause? _ limit:LimitOffsetClauses?
 
 SelectClause // 8
-  = 'SELECT' _ modifier:( 'DISTINCT' / 'REDUCED' )? _ v:SelectClauseA
+  = 'SELECT'i _ modifier:( 'DISTINCT'i / 'REDUCED'i )? _ v:SelectClauseA
   {return {modifier:modifier, "sp:resultVariables":v}}
 SelectClauseA
   = v:(SelectClauseVars / SelectClauseWildcard)
@@ -51,7 +51,7 @@ SelectClauseVars
   = v:( _ Var / _ SelectClauseExpression )+
   {return v.map(function(v){return v[1]})}
 SelectClauseExpression
-  = '(' _ e:Expression __ 'AS' __ v:Var _ ')'
+  = '(' _ e:Expression __ 'AS'i __ v:Var _ ')'
   {e["sp:as"]=v;return e;}
 SelectClauseWildcard
   = '*'
@@ -87,46 +87,46 @@ AskQuery // 11 TOTO DatasetClause
   }
 
 DatasetClause // 12
-  = 'FROM' __ ( DefaultGraphClause / NamedGraphClause )
+  = 'FROM'i __ ( DefaultGraphClause / NamedGraphClause )
 
 DefaultGraphClause // 13
   = SourceSelector
 
 NamedGraphClause // 14
-  = 'NAMED' __ SourceSelector
+  = 'NAMED'i __ SourceSelector
 
 SourceSelector // 15
   = IRIref
 
 WhereClause // 16
-  = 'WHERE'? _ g:GroupGraphPattern
+  = 'WHERE'i? _ g:GroupGraphPattern
   {return g}
 
 //SolutionModifier // 17
 //  = GroupClause? _ HavingClause? _ OrderClause? _ LimitOffsetClauses?
 
 GroupClause // 18
-  = 'GROUP' __ 'BY' v:GroupCondition+
+  = 'GROUP'i __ 'BY' v:GroupCondition+
   {return v}
 
 GroupCondition // 19
-  = ( BuiltInCall / FunctionCall / '(' _ Expression _ ( 'AS' __ Var )? _ ')' / Var )
+  = ( BuiltInCall / FunctionCall / '(' _ Expression _ ( 'AS'i __ Var )? _ ')' / Var )
 
 HavingClause // 20
-  = 'HAVING' __ v:HavingCondition+
+  = 'HAVING'i __ v:HavingCondition+
   {return v}
 
 HavingCondition // 21
   = Constraint
 
 OrderClause // 22
-  = 'ORDER' __ 'BY' v:( __ OrderCondition)+
+  = 'ORDER'i __ 'BY'i v:( __ OrderCondition)+
   {return rdfCollection(v.map(function(v){return v[1]}))}
 
 OrderCondition // 23
   = OrderConditionA / OrderConditionB
 OrderConditionA // 23
-  = t:( 'ASC' / 'DESC' ) _ e:BrackettedExpression
+  = t:( 'ASC'i / 'DESC'i ) _ e:BrackettedExpression
   {return {a:({'ASC':'sp:Asc','DESC':'sp:Desc'})[t], "sp:expression":e}}
 OrderConditionB // 23
   = Constraint / Var
@@ -143,15 +143,15 @@ LimitOffsetClausesB
   {return {offset:offset, limit:limit}}
 
 LimitClause // 25
-  = 'LIMIT' __ v:INTEGER
+  = 'LIMIT'i __ v:INTEGER
   {return v}
 
 OffsetClause // 26
-  = 'OFFSET' __ v:INTEGER
+  = 'OFFSET'i __ v:INTEGER
   {return v}
 
 BindingsClause // 27
-  = ( 'BINDINGS' __ Var* _ '{' _ ( '(' _ BindingValue+ ')' _ / NIL )* _ '}' _ )?
+  = ( 'BINDINGS'i __ Var* _ '{' _ ( '(' _ BindingValue+ ')' _ / NIL )* _ '}' _ )?
 
 BindingValue // 28
   = IRIref / RDFLiteral / NumericLiteral / BooleanLiteral / 'UNDEF'
@@ -172,21 +172,21 @@ Modify // 39
   {return {delete:m[0].delete||undefined, insert:m[0].insert||m[2]&&m[2].insert||undefined, u:u, g:g}}
 
 DeleteClause // 40
-  = 'DELETE' __ v:QuadPattern
+  = 'DELETE'i __ v:QuadPattern
   {return {delete:v}}
 
 InsertClause // 41
-  = 'INSERT' __ v:QuadPattern
+  = 'INSERT'i __ v:QuadPattern
   {return {insert:v}}
 
 UsingClause // 42
-  = 'USING' __ ( IRIref / 'NAMED' __ IRIref )
+  = 'USING'i __ ( IRIref / 'NAMED' __ IRIref )
 
 GraphRef // 43
-  = 'GRAPH' __ IRIref
+  = 'GRAPH'i __ IRIref
 
 GraphRefAll // 44
-  = GraphRef / 'DEFAULT' / 'NAMED' / 'ALL'
+  = GraphRef / 'DEFAULT'i / 'NAMED'i / 'ALL'i
 
 QuadPattern // 45
   = '{' _ v:Quads _ '}'
@@ -201,7 +201,7 @@ Quads // 47
   {return {template:template, t2:t2}}
 
 QuadsNotTriples // 48
-  = 'GRAPH' _ VarOrIRIref _ '{' _ TriplesTemplate? _ '}'
+  = 'GRAPH'i _ VarOrIRIref _ '{' _ TriplesTemplate? _ '}'
 
 TriplesTemplate // 49
   = t:TriplesSameSubject _ r:( '.' _ TriplesTemplate? _ )?
@@ -225,24 +225,24 @@ GraphPatternNotTriples // 53
   {return v}
 
 OptionalGraphPattern // 54
-  = 'OPTIONAL' __ v:GroupGraphPattern
+  = 'OPTIONAL'i __ v:GroupGraphPattern
   {return {a:"sp:Optional", "sp:elements":v}}
 
 GraphGraphPattern // 55
-  = 'GRAPH' __ VarOrIRIref __ GroupGraphPattern
+  = 'GRAPH'i __ VarOrIRIref __ GroupGraphPattern
 
 ServiceGraphPattern // 56
-  = 'SERVICE' __ VarOrIRIref __ GroupGraphPattern
+  = 'SERVICE'i __ VarOrIRIref __ GroupGraphPattern
 
 MinusGraphPattern // 57
-  = 'MINUS' __ GroupGraphPattern
+  = 'MINUS'i __ GroupGraphPattern
 
 GroupOrUnionGraphPattern // 58
   = p1:GroupGraphPattern p:( _ 'UNION' _ GroupGraphPattern )*
   {return {a:"sp:Union", "sp:elements":[p1].concat(p.map(function(v){return v[3]}))}}
 
 Filter // 59
-  = 'FILTER' __ v:Constraint
+  = 'FILTER'i __ v:Constraint
   {return {a:"sp:Filter", "sp:expression":v}}
 
 Constraint // 60
@@ -252,7 +252,7 @@ FunctionCall // 61
   = IRIref __ ArgList
 
 ArgList // 62
-  = ( NIL / '(' _ 'DISTINCT'? _ Expression ( _ ',' _ Expression )* _ ')' )
+  = ( NIL / '(' _ 'DISTINCT'i? _ Expression ( _ ',' _ Expression )* _ ')' )
 
 ExpressionList // 63
   = ( NIL / '(' _ Expression ( _ ',' _ Expression )* _ ')' )

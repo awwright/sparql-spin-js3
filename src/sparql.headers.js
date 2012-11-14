@@ -4,5 +4,4 @@ function rdfCollection(v){
 	return v.toList?v.toList():{"@list":v};
 }
 
-module.exports=
-// @include "sparql.parseroutput.js"
+// @include "sparql-parser.js"

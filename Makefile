@@ -2,30 +2,22 @@ NODEJS = node
 
 all: lib/sparql-parser-node.js
 
-PEG_SRC = \
-	pegjs/src/utils.js \
-	pegjs/src/parser.js \
-	pegjs/src/compiler.js \
-	pegjs/src/checks.js \
-	pegjs/src/passes.js \
-	pegjs/src/emitter.js
-
-lib/peg.node.js: src/peg.node.headers.js pegjs/VERSION $(PEG_SRC)
-	cat src/peg.node.headers.js $(PEG_SRC) >$@
+pegjs/lib/parser.js: pegjs/src/parser.pegjs
+	cd pegjs && $(MAKE) parser
 
 lib/sparql-parser-node.js: src/sparql.headers.js lib/sparql-parser.js
 	cat src/sparql.headers.js lib/sparql-parser.js >$@
 
-lib/sparql-parser.js: bin/parse.js src/sparql.peg lib/peg.node.js
-	$(NODEJS) bin/parse.js >$@
+lib/sparql-parser.js: src/sparql.peg
+	$(NODEJS) pegjs/bin/pegjs <$< >$@
 
-pegjs/VERSION:
+pegjs/src/parser.pegjs:
 	git submodule update --init
 
 clean:
-	rm lib/peg.node.js lib/sparql-parser-node.js lib/sparql-parser.js
+	rm -f lib/sparql-parser-node.js lib/sparql-parser.js
 
 update:
 	git submodule update
 
-.PHONY : clean update
+.PHONY : all clean update
